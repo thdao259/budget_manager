@@ -1,4 +1,4 @@
-use rusqlite::{params, Connection, Result};
+use rusqlite::{named_params, params, Connection, Result};
 use clap::{Parser, Subcommand};
 
 static DB_NAME: &str = "budgets.db";
@@ -205,8 +205,33 @@ fn print_budgets(name: Option<String>) -> Result<()> {
     Ok(())
 }
 
+fn print_sum_table(conn: &Connection, name: String) -> Result<()> {
+    //let conn = Connection::open(DB_NAME)?;
+    let total: f64 = conn.query_row(format!("SELECT COALESCE(SUM(amount),0) FROM {}", name).as_str(), [], |row| row.get(0))?;
 
+    println!("Total sum for budget {} = {}", name, total);
+    Ok(())
+}
 
+fn print_sum(name: Option<String>) -> Result<()>{
+    let conn = Connection::open(DB_NAME)?;
+
+    match name {
+        Some(name) => {
+            print_sum_table (&conn, name)?;
+        }
+        None => {
+            let mut stmt = conn.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name != 'sqlite_sequence'")?;
+            let tables_name: Vec<String> = stmt.query_map([], |row| row.get(0))?
+                                                .filter_map(Result::ok)
+                                                .collect();
+            for table in tables_name {
+                print_sum_table(&conn, table)?;
+            }
+        }
+    }
+    Ok(())
+}
 // main function
 fn main() {
     let main_cmd = MainCommands::parse();
@@ -223,10 +248,12 @@ fn main() {
         Some(BudgetCommands::PrintBudget { name }) => {
             println!("Printing budget: {}", name);
             print_budgets(Some(name.to_string().to_lowercase())).unwrap();
+            print_sum(Some(name.to_string().to_lowercase())).unwrap();
         }
         Some(BudgetCommands::PrintBudgets {}) => {
             println!("PRINT ALL");
             print_budgets(None).unwrap();
+            print_sum(None).unwrap();
         }
         Some(BudgetCommands::EditBudget(edit_sub_cmd)) => {
             println!("Editing budget");
