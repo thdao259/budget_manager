@@ -87,7 +87,7 @@ pub fn edit_transaction(conn: &Connection
 }
 // function to print a table
 // get connection and name as input arguments
-fn print_budget(conn: &Connection, name: &String) -> Result<()> {
+fn view_budget(conn: &Connection, name: &str) -> Result<()> {
     let mut stmt = conn.prepare(format!("SELECT * FROM {}", name).as_str())?;
     let budget_iter = stmt.query_map([], |row| {
         Ok(Budget {
@@ -108,10 +108,10 @@ fn print_budget(conn: &Connection, name: &String) -> Result<()> {
 // function to print a budget
 // arguments:
 // name: for table name
-pub fn print_budgets(conn: &Connection, name: Option<String>) -> Result<()> {
+pub fn view_budgets(conn: &Connection, name: Option<&str>) -> Result<()> {
     match name {
         Some(name) => {
-            print_budget(&conn, &name)?;
+            view_budget(&conn, &name)?;
         }
         None => {
             let mut stmt = conn.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name != 'sqlite_sequence'")?;
@@ -121,7 +121,32 @@ pub fn print_budgets(conn: &Connection, name: Option<String>) -> Result<()> {
 
             for table in table_names {
                 println!("Print budget: {}", table);
-                print_budget(&conn, &table)?;
+                view_budget(&conn, &table)?;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn print_sum_table(conn: &Connection, name: &str) -> Result<()> {
+    let total: f64 = conn.query_row(format!("SELECT COALESCE(SUM(amount),0) FROM {}", name).as_str(), [], |row| row.get(0))?;
+
+    println!("Total sum for budget {} = {}", name, total);
+    Ok(())
+}
+
+pub fn get_sum(conn: &Connection, name: Option<&str>) -> Result<()>{
+    match name {
+        Some(name) => {
+            print_sum_table (&conn, name)?;
+        }
+        None => {
+            let mut stmt = conn.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name != 'sqlite_sequence'")?;
+            let tables_name: Vec<String> = stmt.query_map([], |row| row.get(0))?
+                                                .filter_map(Result::ok)
+                                                .collect();
+            for table in tables_name {
+                print_sum_table(&conn, table.as_str())?;
             }
         }
     }

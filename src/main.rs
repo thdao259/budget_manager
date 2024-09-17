@@ -3,7 +3,7 @@ use std::any::Any;
 use clap::{Parser, Subcommand};
 
 mod budget;
-use budget::{Budget, add_budget, remove_budget, add_transaction, edit_transaction, remove_transaction, print_budgets};
+use budget::{Budget, add_budget, remove_budget, add_transaction, edit_transaction, remove_transaction, view_budgets, get_sum};
 use rusqlite::{Connection, Result};
 
 static DB_NAME: &str = "budgets.db";
@@ -27,8 +27,8 @@ enum BudgetCommands {
     AddBudget { name: String },
     EditBudget (EditBudgetCmd),
     RemoveBudget { name: String },
-    PrintBudget { name: String },
-    PrintBudgets,
+    ViewBudget { name: Option<String> },
+    GetSum { name: Option<String> },
 }
 #[derive(Parser, Debug)]
 #[command(
@@ -83,33 +83,6 @@ struct RemoveTransactionArgs {
 }
 
 
-fn print_sum_table(conn: &Connection, name: String) -> Result<()> {
-    //let conn = Connection::open(DB_NAME)?;
-    let total: f64 = conn.query_row(format!("SELECT COALESCE(SUM(amount),0) FROM {}", name).as_str(), [], |row| row.get(0))?;
-
-    println!("Total sum for budget {} = {}", name, total);
-    Ok(())
-}
-
-fn print_sum(name: Option<String>) -> Result<()>{
-    let conn = Connection::open(DB_NAME)?;
-
-    match name {
-        Some(name) => {
-            print_sum_table (&conn, name)?;
-        }
-        None => {
-            let mut stmt = conn.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name != 'sqlite_sequence'")?;
-            let tables_name: Vec<String> = stmt.query_map([], |row| row.get(0))?
-                                                .filter_map(Result::ok)
-                                                .collect();
-            for table in tables_name {
-                print_sum_table(&conn, table)?;
-            }
-        }
-    }
-    Ok(())
-}
 // main function
 fn main() {
     let main_cmd = MainCommands::parse();
@@ -124,16 +97,18 @@ fn main() {
             println!("Removing budget: {}", name);
             remove_budget(&conn, &name.to_string().to_lowercase()).unwrap();
         }
-        Some(BudgetCommands::PrintBudget { name }) => {
-            println!("Printing budget: {}", name);
-            print_budgets(&conn, Some(name.to_string().to_lowercase())).unwrap();
-            print_sum(Some(name.to_string().to_lowercase())).unwrap();
+        Some(BudgetCommands::ViewBudget { name }) => {
+            println!("Printing budget: {:?}", name);
+
+            view_budgets(&conn, name.as_deref()).unwrap();
+            //get_sum(&conn, Some(name.to_string().to_lowercase())).unwrap();
         }
-        Some(BudgetCommands::PrintBudgets {}) => {
-            println!("PRINT ALL");
-            print_budgets(&conn, None).unwrap();
-            print_sum(None).unwrap();
+
+        Some(BudgetCommands::GetSum { name }) => {
+            println! ("Get sum of {:?}", name);
+            get_sum(&conn, name.as_deref()).unwrap();
         }
+
         Some(BudgetCommands::EditBudget(edit_sub_cmd)) => {
             println!("Editing budget");
             match &edit_sub_cmd.edit_budget_commands {
