@@ -3,6 +3,36 @@ name = "budget_manager"
 version = "0.1.0"
 edition = "2021"
 
+# Enable conditional dependencies and binary targets
+[features]
+default = ["cli"] # CLI will be built by default
+cli = []          # Feature flag for CLI dependencies
+web = ["actix-web", "actix-rt", "tokio", "actix-http-test", "serde", "serde_json"]          # Feature flag for Web API dependencies
+
+
 [dependencies]
 clap = { version = "4.5.9", features = ["derive"] }
 rusqlite = { version = "0.31.0", features = ["bundled"] }
+
+serde = { version = "1.0", features = ["derive"], optional = true }
+serde_json = {version = "1.0", optional = true}
+
+# Conditional dependencies for web version
+actix-web = { version = "4.9.0", optional = true }  # Web framework
+actix-rt = { version = "2", optional = true }   # Actix runtime
+tokio = { version = "1", features = ["full"], optional = true }
+actix-http-test = { version = "3.2.0", optional = true } # For testing actix-web routes
+
+# Optional features for dev dependencies
+[dev-dependencies]
+
+# Specify the binary targets (one for CLI, one for Web API)
+[[bin]]
+name = "budget_cli"
+path = "src/main.rs"
+required-features = ["cli"]
+
+[[bin]]
+name = "budget_web_api"
+path = "src/web.rs"
+required-features = ["web"]
